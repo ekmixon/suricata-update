@@ -27,5 +27,5 @@ class GetTestCase(unittest.TestCase):
 
     def test_get0(self):
         buf = io.BytesIO()
-        bytes_read, info = net.get("file:///%s/Makefile" % (os.getcwd()), buf)
+        bytes_read, info = net.get(f"file:///{os.getcwd()}/Makefile", buf)
         self.assertTrue(b"clean" in buf.getvalue())

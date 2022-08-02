@@ -57,10 +57,7 @@ class ZipArchiveReader:
     def next(self):
         if self.names:
             name = self.names.pop(0)
-            if name.endswith("/"):
-                # Is a directory, ignore
-                return self.next()
-            return name
+            return self.next() if name.endswith("/") else name
         raise StopIteration
 
     def open(self, name):
@@ -86,13 +83,13 @@ BRIGHT_CYAN = "\x1b[1;36m"
 RESET = "\x1b[0m"
 
 def blue(msg):
-    return "%s%s%s" % (BLUE, msg, RESET)
+    return f"{BLUE}{msg}{RESET}"
 
 def bright_magenta(msg):
-    return "%s%s%s" % (BRIGHT_MAGENTA, msg, RESET)
+    return f"{BRIGHT_MAGENTA}{msg}{RESET}"
 
 def bright_cyan(msg):
-    return "%s%s%s" % (BRIGHT_CYAN, msg, RESET)
+    return f"{BRIGHT_CYAN}{msg}{RESET}"
 
 def orange(msg):
-    return "%s%s%s" % (ORANGE, msg, RESET)
+    return f"{ORANGE}{msg}{RESET}"

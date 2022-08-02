@@ -127,7 +127,7 @@ class Rule(dict):
     def idstr(self):
         """Return the gid and sid of the rule as a string formatted like:
         '[GID:SID]'"""
-        return "[%s:%s]" % (str(self.gid), str(self.sid))
+        return f"[{str(self.gid)}:{str(self.sid)}]"
 
     def brief(self):
         """ A brief description of the rule.
@@ -149,9 +149,9 @@ class Rule(dict):
         return self.format()
 
     def format(self):
-        if self.noalert and not "noalert;" in self.raw:
+        if self.noalert and "noalert;" not in self.raw:
             self.raw = re.sub(r'( *sid\: *[0-9]+\;)', r' noalert;\1', self.raw)
-        return u"%s%s" % (u"" if self.enabled else u"# ", self.raw)
+        return f'{u"" if self.enabled else u"# "}{self.raw}'
 
 def find_opt_end(options):
     """ Find the end of an option (;) handling escapes. """
@@ -183,11 +183,7 @@ def parse(buf, group=None):
     if not m:
         return None
 
-    if m.group("enabled") == "#":
-        enabled = False
-    else:
-        enabled = True
-
+    enabled = m.group("enabled") != "#"
     header = m.group("header").strip()
 
     rule = Rule(enabled=enabled, group=group)
@@ -205,10 +201,8 @@ def parse(buf, group=None):
                   "dest_addr",
                   "dest_port",
                   ]
-        state = 0
-
         rem = header
-        while state < len(states):
+        for state_ in states:
             if not rem:
                 return None
             if rem[0] == "[":
@@ -227,22 +221,20 @@ def parse(buf, group=None):
                     token = rem[:end].strip()
                     rem = rem[end:].strip()
 
-            if states[state] == "action":
+            if state_ == "action":
                 action = token
-            elif states[state] == "proto":
+            elif state_ == "proto":
                 rule["proto"] = token
-            elif states[state] == "source_addr":
+            elif state_ == "source_addr":
                 rule["source_addr"] = token
-            elif states[state] == "source_port":
+            elif state_ == "source_port":
                 rule["source_port"] = token
-            elif states[state] == "direction":
+            elif state_ == "direction":
                 direction = token
-            elif states[state] == "dest_addr":
+            elif state_ == "dest_addr":
                 rule["dest_addr"] = token
-            elif states[state] == "dest_port":
+            elif state_ == "dest_port":
                 rule["dest_port"] = token
-
-            state += 1
 
     if action not in actions:
         return None
@@ -253,9 +245,7 @@ def parse(buf, group=None):
 
     options = m.group("options")
 
-    while True:
-        if not options:
-            break
+    while options:
         index = find_opt_end(options)
         if index < 0:
             raise NoEndOfOptionError("no end of option")
@@ -271,7 +261,7 @@ def parse(buf, group=None):
         if name in ["gid", "sid", "rev"]:
             rule[name] = int(val)
         elif name == "metadata":
-            if not name in rule:
+            if name not in rule:
                 rule[name] = []
             rule[name] += [v.strip() for v in val.split(",")]
         elif name == "flowbits":
@@ -320,12 +310,11 @@ def parse_fileobj(fileobj, group=None):
         except:
             pass
         if line.rstrip().endswith("\\"):
-            buf = "%s%s " % (buf, line.rstrip()[0:-1])
+            buf = f"{buf}{line.rstrip()[:-1]} "
             continue
         buf = buf + line
         try:
-            rule = parse(buf, group)
-            if rule:
+            if rule := parse(buf, group):
                 rules.append(rule)
         except Exception as err:
             logger.error("Failed to parse rule: %s: %s", buf.rstrip(), err)
@@ -352,8 +341,7 @@ class FlowbitResolver(object):
 
     def resolve(self, rules):
         required = self.get_required_flowbits(rules)
-        enabled = self.set_required_flowbits(rules, required)
-        if enabled:
+        if enabled := self.set_required_flowbits(rules, required):
             self.enabled += enabled
             return self.resolve(rules)
         return self.enabled
@@ -374,14 +362,16 @@ class FlowbitResolver(object):
         """
         required = []
 
-        for rule in [rule for rule in rulemap.values()]:
+        for rule in list(rulemap.values()):
             if not rule:
                 continue
-            for option, value in map(self.parse_flowbit, rule.flowbits):
-                if option in self.setters and value in flowbits:
-                    if rule.enabled and not include_enabled:
-                        continue
-                    required.append(rule)
+            required.extend(
+                rule
+                for option, value in map(self.parse_flowbit, rule.flowbits)
+                if option in self.setters
+                and value in flowbits
+                and (not rule.enabled or include_enabled)
+            )
 
         return required
 
@@ -400,7 +390,7 @@ class FlowbitResolver(object):
         elif len(tokens) == 2:
             return tokens[0], tokens[1]
         else:
-            raise Exception("Flowbit parse error on %s" % (flowbit))
+            raise Exception(f"Flowbit parse error on {flowbit}")
 
 def enable_flowbit_dependencies(rulemap):
     """Helper function to resolve flowbits, wrapping the FlowbitResolver
@@ -413,7 +403,7 @@ def format_sidmsgmap(rule):
     try:
         return " || ".join([str(rule.sid), rule.msg] + rule.references)
     except:
-        logger.error("Failed to format rule as sid-msg.map: %s" % (str(rule)))
+        logger.error(f"Failed to format rule as sid-msg.map: {str(rule)}")
         return None
 
 def format_sidmsgmap_v2(rule):
@@ -434,6 +424,4 @@ def format_sidmsgmap_v2(rule):
 
 def parse_var_names(var):
     """ Parse out the variable names from a string. """
-    if var is None:
-        return []
-    return re.findall("\$([\w_]+)", var)
+    return [] if var is None else re.findall("\$([\w_]+)", var)

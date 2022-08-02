@@ -23,23 +23,26 @@ def parse_os_release(filename="/etc/os-release"):
 
     if not os.path.exists(filename):
         return os_release
-    
+
     with open(filename) as fileobj:
         for line in fileobj:
             line = line.strip()
-            m = re.match("^(\w+)=\"?(.*?)\"?$", line)
-            if m:
-                os_release[m.group(1)] = m.group(2)
+            if m := re.match("^(\w+)=\"?(.*?)\"?$", line):
+                os_release[m[1]] = m[2]
     return os_release
 
 def dist():
     os_release = parse_os_release()
     if "NAME" in os_release:
         version_fields = ["VERSION_ID", "BUILD_ID"]
-        for vf in version_fields:
-            if vf in os_release:
-                return "{}/{}".format(os_release["NAME"], os_release[vf])
-        return os_release["NAME"]
+        return next(
+            (
+                f'{os_release["NAME"]}/{os_release[vf]}'
+                for vf in version_fields
+                if vf in os_release
+            ),
+            os_release["NAME"],
+        )
 
     # Arch may or may not have /etc/os-release, but its easy to
     # detect.
@@ -48,7 +51,7 @@ def dist():
 
     # Uname fallback.
     uname = platform.uname()
-    return "{}/{}".format(uname[0], uname[2])
+    return f"{uname[0]}/{uname[2]}"
 
 normalized_arch = {
     "amd64": "x86_64",
@@ -66,10 +69,9 @@ if __name__ == "__main__":
     #    Python: 3.7.7; \
     #    Dist: Fedora/31; \
     #    Suricata: 4.0.0)
-    parts = []
-    parts.append("OS: {}".format(platform.system()))
-    parts.append("CPU: {}".format(arch()))
-    parts.append("Python: {}".format(platform.python_version()))
-    parts.append("Dist: {}".format(dist()))
+    parts = [f"OS: {platform.system()}"]
+    parts.append(f"CPU: {arch()}")
+    parts.append(f"Python: {platform.python_version()}")
+    parts.append(f"Dist: {dist()}")
 
-    print("Suricata-Update/1.2.0dev0 ({})".format("; ".join(parts)))
+    print(f'Suricata-Update/1.2.0dev0 ({"; ".join(parts)})')

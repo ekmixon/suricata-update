@@ -107,21 +107,23 @@ class Fetch:
     def check_checksum(self, tmp_filename, url):
         print(url)
         try:
-            checksum_url = url[0] + ".md5"
+            checksum_url = f"{url[0]}.md5"
             net_arg=(checksum_url,url[1])
             local_checksum = hashlib.md5(
                 open(tmp_filename, "rb").read()).hexdigest().strip()
             remote_checksum_buf = io.BytesIO()
-            logger.info("Checking %s." % (checksum_url))
+            logger.info(f"Checking {checksum_url}.")
             net.get(net_arg, remote_checksum_buf)
             remote_checksum = remote_checksum_buf.getvalue().decode().strip()
-            logger.debug("Local checksum=|%s|; remote checksum=|%s|" % (
-                local_checksum, remote_checksum))
+            logger.debug(
+                f"Local checksum=|{local_checksum}|; remote checksum=|{remote_checksum}|"
+            )
+
             if local_checksum == remote_checksum:
                 os.utime(tmp_filename, None)
                 return True
         except Exception as err:
-            logger.warning("Failed to check remote checksum: %s" % err)
+            logger.warning(f"Failed to check remote checksum: {err}")
         return False
 
     def progress_hook(self, content_length, bytes_read):
@@ -145,14 +147,13 @@ class Fetch:
 
     def url_basename(self, url):
         """ Return the base filename of the URL. """
-        filename = os.path.basename(url).split("?", 1)[0]
-        return filename
+        return os.path.basename(url).split("?", 1)[0]
 
     def get_tmp_filename(self, url):
         url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
         return os.path.join(
-            config.get_cache_dir(),
-            "%s-%s" % (url_hash, self.url_basename(url)))
+            config.get_cache_dir(), f"{url_hash}-{self.url_basename(url)}"
+        )
 
     def fetch(self, url):
         net_arg = url
@@ -170,19 +171,18 @@ class Fetch:
             return self.extract_files(tmp_filename)
         if not config.args().force and os.path.exists(tmp_filename):
             if not config.args().now and \
-               time.time() - os.stat(tmp_filename).st_mtime < (60 * 15):
+                   time.time() - os.stat(tmp_filename).st_mtime < (60 * 15):
                 logger.info(
                     "Last download less than 15 minutes ago. Not downloading %s.",
                     url)
                 return self.extract_files(tmp_filename)
-            if checksum:
-                if self.check_checksum(tmp_filename, net_arg):
-                    logger.info("Remote checksum has not changed. "
-                                "Not fetching.")
-                    return self.extract_files(tmp_filename)
+            if checksum and self.check_checksum(tmp_filename, net_arg):
+                logger.info("Remote checksum has not changed. "
+                            "Not fetching.")
+                return self.extract_files(tmp_filename)
         if not os.path.exists(config.get_cache_dir()):
             os.makedirs(config.get_cache_dir(), mode=0o770)
-        logger.info("Fetching %s." % (url))
+        logger.info(f"Fetching {url}.")
         try:
             tmp_fileobj = tempfile.NamedTemporaryFile()
             net.get(
@@ -213,7 +213,7 @@ class Fetch:
         if url:
             try:
                 fetched = self.fetch(url)
-                files.update(fetched)
+                files |= fetched
             except URLError as err:
                 url = url[0] if isinstance(url, tuple) else url
                 logger.error("Failed to fetch %s: %s", url, err)
@@ -249,19 +249,13 @@ def load_filters(filename):
                 rule_filter = matchers_mod.ModifyRuleFilter.parse(line)
                 filters.append(rule_filter)
             except Exception as err:
-                raise exceptions.ApplicationError(
-                    "Failed to parse modify filter: {}".format(line))
+                raise exceptions.ApplicationError(f"Failed to parse modify filter: {line}")
 
     return filters
 
 def load_drop_filters(filename):
     matchers = load_matchers(filename)
-    filters = []
-
-    for matcher in matchers:
-        filters.append(matchers_mod.DropRuleFilter(matcher))
-
-    return filters
+    return [matchers_mod.DropRuleFilter(matcher) for matcher in matchers]
 
 def parse_matchers(fileobj):
     matchers = []
@@ -271,12 +265,11 @@ def parse_matchers(fileobj):
         if not line or line.startswith("#"):
             continue
         line = line.rsplit(" #")[0]
-        matcher = matchers_mod.parse_rule_match(line)
-        if not matcher:
-            logger.warn("Failed to parse: \"%s\"" % (line))
-        else:
+        if matcher := matchers_mod.parse_rule_match(line):
             matchers.append(matcher)
 
+        else:
+            logger.warn("Failed to parse: \"%s\"" % (line))
     return matchers
 
 def load_matchers(filename):
@@ -297,41 +290,17 @@ def load_local(local, files):
         if len(local_files) == 0:
             local_files.append(local)
         for filename in local_files:
-            logger.info("Loading local file %s" % (filename))
+            logger.info(f"Loading local file {filename}")
             if filename in files:
-                logger.warn(
-                    "Local file %s overrides existing file of same name." % (
-                        filename))
+                logger.warn(f"Local file {filename} overrides existing file of same name.")
             try:
                 with open(filename, "rb") as fileobj:
                     files.append(SourceFile(filename, fileobj.read()))
             except Exception as err:
-                logger.error("Failed to open %s: %s" % (filename, err))
+                logger.error(f"Failed to open {filename}: {err}")
 
 def load_dist_rules(files):
     """Load the rule files provided by the Suricata distribution."""
-
-    # In the future hopefully we can just pull in all files from
-    # /usr/share/suricata/rules, but for now pull in the set of files
-    # known to have been provided by the Suricata source.
-    filenames = [
-        "app-layer-events.rules",
-        "decoder-events.rules",
-        "dhcp-events.rules",
-        "dnp3-events.rules",
-        "dns-events.rules",
-        "files.rules",
-        "http-events.rules",
-        "ipsec-events.rules",
-        "kerberos-events.rules",
-        "modbus-events.rules",
-        "nfs-events.rules",
-        "ntp-events.rules",
-        "smb-events.rules",
-        "smtp-events.rules",
-        "stream-events.rules",
-        "tls-events.rules",
-    ]
 
     dist_rule_path = config.get(config.DIST_RULE_DIRECTORY_KEY)
     if not dist_rule_path:
@@ -348,6 +317,28 @@ def load_dist_rules(files):
             logger.warning("Distribution rule path not readable: %s",
                            dist_rule_path)
             return
+        # In the future hopefully we can just pull in all files from
+        # /usr/share/suricata/rules, but for now pull in the set of files
+        # known to have been provided by the Suricata source.
+        filenames = [
+            "app-layer-events.rules",
+            "decoder-events.rules",
+            "dhcp-events.rules",
+            "dnp3-events.rules",
+            "dns-events.rules",
+            "files.rules",
+            "http-events.rules",
+            "ipsec-events.rules",
+            "kerberos-events.rules",
+            "modbus-events.rules",
+            "nfs-events.rules",
+            "ntp-events.rules",
+            "smb-events.rules",
+            "smtp-events.rules",
+            "stream-events.rules",
+            "tls-events.rules",
+        ]
+
         for filename in filenames:
             path = os.path.join(dist_rule_path, filename)
             if not os.path.exists(path):
@@ -361,7 +352,7 @@ def load_dist_rules(files):
                 with open(path, "rb") as fileobj:
                     files.append(SourceFile(path, fileobj.read()))
             except Exception as err:
-                logger.error("Failed to open %s: %s" % (path, err))
+                logger.error(f"Failed to open {path}: {err}")
                 sys.exit(1)
 
 def load_classification(suriconf, files):
@@ -375,34 +366,39 @@ def load_classification(suriconf, files):
 
     for path in dirs:
         if os.path.exists(path):
-            logger.debug("Loading {}".format(path))
+            logger.debug(f"Loading {path}")
             with open(path) as fp:
                 for line in fp:
                     if line.startswith("#") or not line.strip():
                         continue
                     config_classification = line.split(":")[1].strip()
                     key, desc, priority = config_classification.split(",")
-                    if key in classification_dict:
-                        if classification_dict[key][1] >= priority:
-                            continue
+                    if (
+                        key in classification_dict
+                        and classification_dict[key][1] >= priority
+                    ):
+                        continue
                     classification_dict[key] = [desc, priority, line.strip()]
 
     # Handle files from the sources
     for filep in files:
-        logger.debug("Loading {}".format(filep[0]))
+        logger.debug(f"Loading {filep[0]}")
         lines = filep[1].decode().split('\n')
         for line in lines:
             if line.startswith("#") or not line.strip():
                 continue
             config_classification = line.split(":")[1].strip()
             key, desc, priority = config_classification.split(",")
-            if key in classification_dict:
-                if classification_dict[key][1] >= priority:
-                    if classification_dict[key][1] > priority:
-                        logger.warning("Found classification with same shortname \"{}\","
-                                       " keeping the one with higher priority ({})".format(
-                                       key, classification_dict[key][1]))
-                    continue
+            if (
+                key in classification_dict
+                and classification_dict[key][1] >= priority
+            ):
+                if classification_dict[key][1] > priority:
+                    logger.warning(
+                        f'Found classification with same shortname \"{key}\", keeping the one with higher priority ({classification_dict[key][1]})'
+                    )
+
+                continue
             classification_dict[key] = [desc, priority, line.strip()]
 
     return classification_dict
@@ -415,9 +411,9 @@ def manage_classification(suriconf, files):
     classification_dict = load_classification(suriconf, files)
     path = os.path.join(config.get_output_dir(), "classification.config")
     try:
-        logger.info("Writing {}".format(path))
+        logger.info(f"Writing {path}")
         with open(path, "w+") as fp:
-            fp.writelines("{}\n".format(v[2]) for k, v in classification_dict.items())
+            fp.writelines(f"{v[2]}\n" for k, v in classification_dict.items())
     except (OSError, IOError) as err:
         logger.error(err)
 
@@ -426,40 +422,45 @@ def handle_dataset_files(rule, dep_files):
         return
     load_attr = [el.strip() for el in rule.dataset.split(",") if "load" in el][0]
     dataset_fname = os.path.basename(load_attr.split(" ")[1])
-    filename = [fname for fname, content in dep_files.items() if fname == dataset_fname]
-    if filename:
-        logger.debug("Copying dataset file %s to output directory" % dataset_fname)
+    if filename := [
+        fname for fname, content in dep_files.items() if fname == dataset_fname
+    ]:
+        logger.debug(f"Copying dataset file {dataset_fname} to output directory")
         with open(os.path.join(config.get_output_dir(), dataset_fname), "w+") as fp:
             fp.write(dep_files[dataset_fname].decode("utf-8"))
     else:
-        logger.error("Dataset file %s was not found" % dataset_fname)
+        logger.error(f"Dataset file {dataset_fname} was not found")
 
 def handle_filehash_files(rule, dep_files, fhash):
     if not rule.enabled:
         return
     filehash_fname = rule.get(fhash)
-    filename = [fname for fname, content in dep_files.items() if os.path.join(*(fname.split(os.path.sep)[1:])) == filehash_fname]
-    if filename:
-        logger.debug("Copying %s file %s to output directory" % (fhash, filehash_fname))
+    if filename := [
+        fname
+        for fname, content in dep_files.items()
+        if os.path.join(*(fname.split(os.path.sep)[1:])) == filehash_fname
+    ]:
+        logger.debug(f"Copying {fhash} file {filehash_fname} to output directory")
         filepath = os.path.join(config.get_state_dir(), os.path.dirname(filename[0]))
-        logger.debug("filepath: %s" % filepath)
+        logger.debug(f"filepath: {filepath}")
         try:
             os.makedirs(filepath)
         except OSError as oserr:
             if oserr.errno != errno.EEXIST:
                 logger.error(oserr)
                 sys.exit(1)
-        logger.debug("output fname: %s" % os.path.join(filepath, os.path.basename(filehash_fname)))
+        logger.debug(
+            f"output fname: {os.path.join(filepath, os.path.basename(filehash_fname))}"
+        )
+
         with open(os.path.join(filepath, os.path.basename(filehash_fname)), "w+") as fp:
             fp.write(dep_files[os.path.join("rules", filehash_fname)].decode("utf-8"))
     else:
-        logger.error("%s file %s was not found" % (fhash, filehash_fname))
+        logger.error(f"{fhash} file {filehash_fname} was not found")
 
 def write_merged(filename, rulemap, dep_files):
 
     if not args.quiet:
-        # List of rule IDs that have been added.
-        added = []
         # List of rule objects that have been removed.
         removed = []
         # List of rule IDs that have been modified.
@@ -469,15 +470,12 @@ def write_merged(filename, rulemap, dep_files):
         if os.path.exists(filename):
             for rule in rule_mod.parse_file(filename):
                 oldset[rule.id] = True
-                if not rule.id in rulemap:
+                if rule.id not in rulemap:
                     removed.append(rule)
                 elif rule.format() != rulemap[rule.id].format():
                     modified.append(rulemap[rule.id])
 
-        for key in rulemap:
-            if not key in oldset:
-                added.append(key)
-
+        added = [key for key in rulemap if key not in oldset]
         enabled = len([rule for rule in rulemap.values() if rule.enabled])
         logger.info("Writing rules to %s: total: %d; enabled: %d; "
                     "added: %d; removed %d; modified: %d" % (
@@ -493,7 +491,7 @@ def write_merged(filename, rulemap, dep_files):
             rule = rulemap[sid]
             for kw in file_kw:
                 if kw in rule:
-                    if "dataset" == kw:
+                    if kw == "dataset":
                         handle_dataset_files(rule, dep_files)
                     else:
                         handle_filehash_files(rule, dep_files, kw)
@@ -508,8 +506,8 @@ def write_to_directory(directory, files, rulemap, dep_files):
     # List of rule IDs that have been modified.
     modified = []
 
-    oldset = {}
     if not args.quiet:
+        oldset = {}
         for file in files:
             outpath = os.path.join(
                 directory, os.path.basename(file.filename))
@@ -517,14 +515,11 @@ def write_to_directory(directory, files, rulemap, dep_files):
             if os.path.exists(outpath):
                 for rule in rule_mod.parse_file(outpath):
                     oldset[rule.id] = True
-                    if not rule.id in rulemap:
+                    if rule.id not in rulemap:
                         removed.append(rule)
                     elif rule.format() != rulemap[rule.id].format():
                         modified.append(rule.id)
-        for key in rulemap:
-            if not key in oldset:
-                added.append(key)
-
+        added.extend(key for key in rulemap if key not in oldset)
         enabled = len([rule for rule in rulemap.values() if rule.enabled])
         logger.info("Writing rule files to directory %s: total: %d; "
                     "enabled: %d; added: %d; removed %d; modified: %d" % (
@@ -538,19 +533,16 @@ def write_to_directory(directory, files, rulemap, dep_files):
     for file in sorted(files):
         outpath = os.path.join(
             directory, os.path.basename(file.filename))
-        logger.debug("Writing %s." % outpath)
+        logger.debug(f"Writing {outpath}.")
         if not file.filename.endswith(".rules"):
             open(outpath, "wb").write(file.content)
         else:
             content = []
             for line in io.StringIO(file.content.decode("utf-8")):
-                rule = rule_mod.parse(line)
-                if not rule:
-                    content.append(line.strip())
-                else:
+                if rule := rule_mod.parse(line):
                     for kw in file_kw:
                         if kw in rule:
-                            if "dataset" == kw:
+                            if kw == "dataset":
                                 handle_dataset_files(rule, dep_files)
                             else:
                                 handle_filehash_files(rule, dep_files, kw)
@@ -561,35 +553,34 @@ def write_to_directory(directory, files, rulemap, dep_files):
                         # rule from a file that was ignored, but we'll
                         # still pass it through.
                         content.append(line.strip())
+                else:
+                    content.append(line.strip())
             tmp_filename = ".".join([outpath, "tmp"])
             io.open(tmp_filename, encoding="utf-8", mode="w").write(
                 u"\n".join(content))
             os.rename(tmp_filename, outpath)
 
 def write_yaml_fragment(filename, files):
-    logger.info(
-        "Writing YAML configuration fragment: %s" % (filename))
+    logger.info(f"Writing YAML configuration fragment: {filename}")
     with open(filename, "w") as fileobj:
         print("%YAML 1.1", file=fileobj)
         print("---", file=fileobj)
         print("rule-files:", file=fileobj)
         for fn in sorted(files):
             if fn.endswith(".rules"):
-                print("  - %s" % os.path.basename(fn), file=fileobj)
+                print(f"  - {os.path.basename(fn)}", file=fileobj)
 
 def write_sid_msg_map(filename, rulemap, version=1):
-    logger.info("Writing %s." % (filename))
+    logger.info(f"Writing {filename}.")
     with io.open(filename, encoding="utf-8", mode="w") as fileobj:
         for key in rulemap:
             rule = rulemap[key]
             if version == 2:
                 formatted = rule_mod.format_sidmsgmap_v2(rule)
-                if formatted:
-                    print(formatted, file=fileobj)
             else:
                 formatted = rule_mod.format_sidmsgmap(rule)
-                if formatted:
-                    print(formatted, file=fileobj)
+            if formatted:
+                print(formatted, file=fileobj)
 
 def build_rule_map(rules):
     """Turn a list of rules into a mapping of rules.
@@ -605,12 +596,14 @@ def build_rule_map(rules):
         else:
             if rule["rev"] == rulemap[rule.id]["rev"]:
                 logger.warning(
-                    "Found duplicate rule SID {} with same revision, "
-                    "keeping the first rule seen.".format(rule.sid))
+                    f"Found duplicate rule SID {rule.sid} with same revision, keeping the first rule seen."
+                )
+
             if rule["rev"] > rulemap[rule.id]["rev"]:
                 logger.warning(
-                    "Found duplicate rule SID {}, "
-                    "keeping the rule with greater revision.".format(rule.sid))
+                    f"Found duplicate rule SID {rule.sid}, keeping the rule with greater revision."
+                )
+
                 rulemap[rule.id] = rule
 
     return rulemap
@@ -619,9 +612,9 @@ def dump_sample_configs():
 
     for filename in configs.filenames:
         if os.path.exists(filename):
-            logger.info("File already exists, not dumping %s." % (filename))
+            logger.info(f"File already exists, not dumping {filename}.")
         else:
-            logger.info("Creating %s." % (filename))
+            logger.info(f"Creating {filename}.")
             shutil.copy(os.path.join(configs.directory, filename), filename)
 
 def resolve_flowbits(rulemap, disabled_rules):
@@ -658,19 +651,16 @@ class ThresholdProcessor:
 
     def extract_regex(self, buf):
         for pattern in self.patterns:
-            m = pattern.search(buf)
-            if m:
+            if m := pattern.search(buf):
                 return m.group(2)
 
     def extract_pattern(self, buf):
-        regex = self.extract_regex(buf)
-        if regex:
+        if regex := self.extract_regex(buf):
             return re.compile(regex, re.I)
 
     def replace(self, threshold, rule):
         for pattern in self.patterns:
-            m = pattern.search(threshold)
-            if m:
+            if m := pattern.search(threshold):
                 return threshold.replace(
                     m.group(1), "gen_id %d, sig_id %d" % (rule.gid, rule.sid))
         return threshold
@@ -682,17 +672,15 @@ class ThresholdProcessor:
             if not line or line.startswith("#"):
                 print(line, file=fileout)
                 continue
-            pattern = self.extract_pattern(line)
-            if not pattern:
-                print(line, file=fileout)
-            else:
+            if pattern := self.extract_pattern(line):
                 for rule in rulemap.values():
-                    if rule.enabled:
-                        if pattern.search(rule.format()):
-                            count += 1
-                            print("# %s" % (rule.brief()), file=fileout)
-                            print(self.replace(line, rule), file=fileout)
-                            print("", file=fileout)
+                    if rule.enabled and pattern.search(rule.format()):
+                        count += 1
+                        print(f"# {rule.brief()}", file=fileout)
+                        print(self.replace(line, rule), file=fileout)
+                        print("", file=fileout)
+            else:
+                print(line, file=fileout)
         logger.info("Generated %d thresholds to %s." % (count, fileout.name))
 
 class FileTracker:
@@ -710,31 +698,33 @@ class FileTracker:
     def add(self, filename):
         checksum = self.md5(filename)
         if not checksum:
-            logger.debug("Recording new file %s" % (filename))
+            logger.debug(f"Recording new file {filename}")
         else:
             logger.debug("Recording existing file %s with hash '%s'.",
                 filename, checksum)
         self.hashes[filename] = checksum
 
     def md5(self, filename):
-        if not os.path.exists(filename):
-            return ""
-        else:
-            return hashlib.md5(open(filename, "rb").read()).hexdigest()
+        return (
+            hashlib.md5(open(filename, "rb").read()).hexdigest()
+            if os.path.exists(filename)
+            else ""
+        )
 
     def any_modified(self):
-        for filename in self.hashes:
-            if self.md5(filename) != self.hashes[filename]:
-                return True
-        return False
+        return any(
+            self.md5(filename) != self.hashes[filename] for filename in self.hashes
+        )
 
 def ignore_file(ignore_files, filename):
-    if not ignore_files:
-        return False
-    for pattern in ignore_files:
-        if fnmatch.fnmatch(os.path.basename(filename), pattern):
-            return True
-    return False
+    return (
+        any(
+            fnmatch.fnmatch(os.path.basename(filename), pattern)
+            for pattern in ignore_files
+        )
+        if ignore_files
+        else False
+    )
 
 def check_vars(suriconf, rulemap):
     """Check that all vars referenced by a rule exist. If a var is not
@@ -748,31 +738,35 @@ def check_vars(suriconf, rulemap):
         rule = rulemap[rule_id]
         disable = False
         for var in rule_mod.parse_var_names(rule["source_addr"]):
-            if not suriconf.has_key("vars.address-groups.%s" % (var)):
+            if not suriconf.has_key(f"vars.address-groups.{var}"):
                 logger.warning(
-                    "Rule has unknown source address var and will be disabled: %s: %s" % (
-                        var, rule.brief()))
+                    f"Rule has unknown source address var and will be disabled: {var}: {rule.brief()}"
+                )
+
                 notes.address_group_vars.add(var)
                 disable = True
         for var in rule_mod.parse_var_names(rule["dest_addr"]):
-            if not suriconf.has_key("vars.address-groups.%s" % (var)):
+            if not suriconf.has_key(f"vars.address-groups.{var}"):
                 logger.warning(
-                    "Rule has unknown dest address var and will be disabled: %s: %s" % (
-                        var, rule.brief()))
+                    f"Rule has unknown dest address var and will be disabled: {var}: {rule.brief()}"
+                )
+
                 notes.address_group_vars.add(var)
                 disable = True
         for var in rule_mod.parse_var_names(rule["source_port"]):
-            if not suriconf.has_key("vars.port-groups.%s" % (var)):
+            if not suriconf.has_key(f"vars.port-groups.{var}"):
                 logger.warning(
-                    "Rule has unknown source port var and will be disabled: %s: %s" % (
-                        var, rule.brief()))
+                    f"Rule has unknown source port var and will be disabled: {var}: {rule.brief()}"
+                )
+
                 notes.port_group_vars.add(var)
                 disable = True
         for var in rule_mod.parse_var_names(rule["dest_port"]):
-            if not suriconf.has_key("vars.port-groups.%s" % (var)):
+            if not suriconf.has_key(f"vars.port-groups.{var}"):
                 logger.warning(
-                    "Rule has unknown dest port var and will be disabled: %s: %s" % (
-                        var, rule.brief()))
+                    f"Rule has unknown dest port var and will be disabled: {var}: {rule.brief()}"
+                )
+
                 notes.port_group_vars.add(var)
                 disable = True
 
@@ -790,8 +784,7 @@ def test_suricata(suricata_path):
 
     if config.get("test-command"):
         test_command = config.get("test-command")
-        logger.info("Testing Suricata configuration with: %s" % (
-            test_command))
+        logger.info(f"Testing Suricata configuration with: {test_command}")
         env = {
             "SURICATA_PATH": suricata_path,
             "OUTPUT_DIR": config.get_output_dir(),
@@ -805,17 +798,16 @@ def test_suricata(suricata_path):
     else:
         logger.info("Testing with suricata -T.")
         suricata_conf = config.get("suricata-conf")
-        if not config.get("no-merge"):
-            if not engine.test_configuration(
+        if config.get("no-merge"):
+            if not engine.test_configuration(suricata_path, suricata_conf):
+                return False
+
+        elif not engine.test_configuration(
                     suricata_path, suricata_conf,
                     os.path.join(
                         config.get_output_dir(),
                         DEFAULT_OUTPUT_RULE_FILENAME)):
-                return False
-        else:
-            if not engine.test_configuration(suricata_path, suricata_conf):
-                return False
-
+            return False
     return True
 
 def copytree(src, dst):
@@ -850,9 +842,7 @@ def load_sources(suricata_version):
 
     # Add any URLs added with the --url command line parameter.
     if config.args().url:
-        for url in config.args().url:
-            urls.append((url, http_header, checksum))
-
+        urls.extend((url, http_header, checksum) for url in config.args().url)
     # Get the new style sources.
     enabled_sources = sources.get_enabled_sources()
 
@@ -886,7 +876,6 @@ def load_sources(suricata_version):
                 http_header = source.get("http-header")
                 checksum = source.get("checksum")
                 url = (source["url"] % params, http_header, checksum)
-                logger.debug("Resolved source %s to URL %s.", name, url[0])
             else:
                 if not index:
                     raise exceptions.ApplicationError(
@@ -900,27 +889,39 @@ def load_sources(suricata_version):
                 url = (index.resolve_url(name, params), http_header,
                        checksum)
                 if "deprecated" in source_config:
-                    logger.warn("Source has been deprecated: %s: %s" % (
-                        name, source_config["deprecated"]))
+                    logger.warn(
+                        f'Source has been deprecated: {name}: {source_config["deprecated"]}'
+                    )
+
                 if "obsolete" in source_config:
-                    logger.warn("Source is obsolete and will not be fetched: %s: %s" % (
-                        name, source_config["obsolete"]))
+                    logger.warn(
+                        f'Source is obsolete and will not be fetched: {name}: {source_config["obsolete"]}'
+                    )
+
                     continue
-                logger.debug("Resolved source %s to URL %s.", name, url[0])
+            logger.debug("Resolved source %s to URL %s.", name, url[0])
             urls.append(url)
 
     if config.get("sources"):
         for url in config.get("sources"):
             if not isinstance(url, str):
                 raise exceptions.InvalidConfigurationError(
-                    "Invalid datatype for source URL: %s" % (str(url)))
+                    f"Invalid datatype for source URL: {str(url)}"
+                )
+
             url = (url % internal_params, http_header, checksum)
             logger.debug("Adding source %s.", url)
             urls.append(url)
 
     # If --etopen is on the command line, make sure its added. Or if
     # there are no URLs, default to ET/Open.
-    if config.get("etopen") or not urls:
+    if config.get("etopen"):
+        if not config.args().offline and not urls:
+            logger.info("No sources configured, will use Emerging Threats Open")
+        urls.append((sources.get_etopen_url(internal_params), http_header,
+                     checksum))
+
+    elif not urls:
         if not config.args().offline and not urls:
             logger.info("No sources configured, will use Emerging Threats Open")
         urls.append((sources.get_etopen_url(internal_params), http_header,
@@ -933,9 +934,7 @@ def load_sources(suricata_version):
     files = []
     for url in urls:
         source_files = Fetch().run(url)
-        for key in source_files:
-            files.append(SourceFile(key, source_files[key]))
-
+        files.extend(SourceFile(key, source_files[key]) for key in source_files)
     # Now load local rules.
     if config.get("local") is not None:
         for local in config.get("local"):
@@ -950,56 +949,53 @@ def copytree_ignore_backup(src, names):
 def check_output_directory(output_dir):
     """ Check that the output directory exists, creating it if it doesn't. """
     if not os.path.exists(output_dir):
-        logger.info("Creating directory %s." % (output_dir))
+        logger.info(f"Creating directory {output_dir}.")
         try:
             os.makedirs(output_dir, mode=0o770)
         except Exception as err:
             raise exceptions.ApplicationError(
-                "Failed to create directory %s: %s" % (
-                    output_dir, err))
+                f"Failed to create directory {output_dir}: {err}"
+            )
 
 # Check and disable ja3 rules if needed.
 #
 # Note: This is a bit of a quick fixup job for 5.0, but we should look
 # at making feature handling more generic.
 def disable_ja3(suriconf, rulemap, disabled_rules):
-    if suriconf and suriconf.build_info:
-        enabled = False
-        reason = None
-        logged = False
-        if "HAVE_NSS" not in suriconf.build_info["features"]:
-            reason = "Disabling ja3 rules as Suricata is built without libnss."
-        else:
-            # Check if disabled. Must be explicitly disabled,
-            # otherwise we'll keep ja3 rules enabled.
-            val = suriconf.get("app-layer.protocols.tls.ja3-fingerprints")
+    if not suriconf or not suriconf.build_info:
+        return
+    enabled = False
+    reason = None
+    logged = False
+    if "HAVE_NSS" not in suriconf.build_info["features"]:
+        reason = "Disabling ja3 rules as Suricata is built without libnss."
+    else:
+        # Check if disabled. Must be explicitly disabled,
+        # otherwise we'll keep ja3 rules enabled.
+        val = suriconf.get("app-layer.protocols.tls.ja3-fingerprints")
 
             # Prior to Suricata 5, leaving ja3-fingerprints undefined
             # in the configuration disabled the feature. With 5.0,
             # having it undefined will enable it as needed.
-            if not val:
-                if suriconf.build_info["version"].major < 5:
-                    val = "no"
-                else:
-                    val = "auto"
+        if not val:
+            val = "no" if suriconf.build_info["version"].major < 5 else "auto"
+        if val and val.lower() not in ["1", "yes", "true", "auto"]:
+            reason = "Disabling ja3 rules as ja3 fingerprints are not enabled."
+        else:
+            enabled = True
 
-            if val and val.lower() not in ["1", "yes", "true", "auto"]:
-                reason = "Disabling ja3 rules as ja3 fingerprints are not enabled."
-            else:
-                enabled = True
-
+    if not enabled:
         count = 0
-        if not enabled:
-            for key, rule in rulemap.items():
-                if "ja3" in rule["features"]:
-                    if not logged:
-                        logger.warn(reason)
-                        logged = True
-                    rule.enabled = False
-                    disabled_rules.append(rule)
-                    count += 1
-            if count:
-                logger.info("%d ja3_hash rules disabled." % (count))
+        for key, rule in rulemap.items():
+            if "ja3" in rule["features"]:
+                if not logged:
+                    logger.warn(reason)
+                    logged = True
+                rule.enabled = False
+                disabled_rules.append(rule)
+                count += 1
+        if count:
+            logger.info("%d ja3_hash rules disabled." % (count))
 
 def _main():
     global args

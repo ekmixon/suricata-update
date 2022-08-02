@@ -76,7 +76,7 @@ class RuleTestCase(unittest.TestCase):
                     """# alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"some message";) \n"""
                     """alert ( msg:"DECODE_NOT_IPV4_DGRAM"; sid:2; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode;)""")
         fileobj = io.StringIO()
-        for i in range(2):
+        for _ in range(2):
             fileobj.write(u"%s\n" % rule_buf)
         fileobj.seek(0)
         rules = suricata.update.rule.parse_fileobj(fileobj)
@@ -87,7 +87,7 @@ class RuleTestCase(unittest.TestCase):
                     """alert ( msg:"DECODE_NOT_IPV4_DGRAM"; sid:1; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode;) \n"""
                     """alert ( msg:"DECODE_NOT_IPV4_DGRAM" sid:1; gid:116; rev:1; metadata:rule-type decode; classtype:protocol-command-decode;) \n""")
         tmp = tempfile.NamedTemporaryFile()
-        for i in range(2):
+        for _ in range(2):
             tmp.write(("%s\n" % rule_buf).encode())
         tmp.flush()
         rules = suricata.update.rule.parse_file(tmp.name)
@@ -149,10 +149,7 @@ alert dnp3 any any -> any any (msg:"SURICATA DNP3 Request flood detected"; \
         rule1 = suricata.update.rule.parse(rule_string_1)
         rule2 = suricata.update.rule.parse(rule_string_2)
         rule3 = suricata.update.rule.parse(rule_string_3)
-        rulemap = {}
-        rulemap[rule1.id] = rule1
-        rulemap[rule2.id] = rule2
-        rulemap[rule3.id] = rule3
+        rulemap = {rule1.id: rule1, rule2.id: rule2, rule3.id: rule3}
         disabled_rules = [rule1, rule2]
         suricata.update.main.resolve_flowbits(rulemap, disabled_rules)
         self.assertEqual(str(rule1), """alert ip any any -> any any (content:"uid=0|28|root|29|"; classtype:bad-unknown; flowbits:set,bit1; flowbits:noalert; sid:10000001; rev:1;)""")

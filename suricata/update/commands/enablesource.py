@@ -62,7 +62,10 @@ def enable_source():
 
     source_index = sources.load_source_index(config)
 
-    if not name in source_index.get_sources() and not name in sources.get_sources_from_dir():
+    if (
+        name not in source_index.get_sources()
+        and name not in sources.get_sources_from_dir()
+    ):
         logger.error("Unknown source: %s", name)
         return 1
 
@@ -87,8 +90,8 @@ def enable_source():
                 params[old_param] = opts[old_param]
 
     if "subscribe-url" in source:
-        print("The source %s requires a subscription. Subscribe here:" % (name))
-        print("  %s" % source["subscribe-url"])
+        print(f"The source {name} requires a subscription. Subscribe here:")
+        print(f'  {source["subscribe-url"]}')
 
     if "parameters" in source:
         for param in source["parameters"]:
@@ -97,7 +100,7 @@ def enable_source():
             else:
                 prompt = source["parameters"][param]["prompt"]
                 while True:
-                    r = input("%s (%s): " % (prompt, param))
+                    r = input(f"{prompt} ({param}): ")
                     r = r.strip()
                     if r:
                         break

@@ -36,9 +36,7 @@ class AllRuleMatcher(object):
 
     @classmethod
     def parse(cls, buf):
-        if buf.strip() == "*":
-            return cls()
-        return None
+        return cls() if buf.strip() == "*" else None
 
 
 class ProtoRuleMatcher:
@@ -61,10 +59,10 @@ class IdRuleMatcher(object):
             self.signatureIds.append((generatorId, signatureId))
 
     def match(self, rule):
-        for (generatorId, signatureId) in self.signatureIds:
-            if generatorId == rule.gid and signatureId == rule.sid:
-                return True
-        return False
+        return any(
+            generatorId == rule.gid and signatureId == rule.sid
+            for generatorId, signatureId in self.signatureIds
+        )
 
     @classmethod
     def parse(cls, buf):
@@ -76,20 +74,16 @@ class IdRuleMatcher(object):
             parts = entry.split(":", 1)
             if not parts:
                 return None
-            if len(parts) == 1:
-                try:
+            try:
+                if len(parts) == 1:
                     signatureId = int(parts[0])
                     matcher.signatureIds.append((1, signatureId))
-                except:
-                    return None
-            else:
-                try:
+                else:
                     generatorId = int(parts[0])
                     signatureId = int(parts[1])
                     matcher.signatureIds.append((generatorId, signatureId))
-                except:
-                    return None
-
+            except:
+                return None
         return matcher
 
 
@@ -149,14 +143,12 @@ class GroupMatcher(object):
     def parse(cls, buf):
         if buf.startswith("group:"):
             try:
-                logger.debug("Parsing group matcher: %s" % (buf))
+                logger.debug(f"Parsing group matcher: {buf}")
                 group = buf.split(":", 1)[1]
                 return cls(group.strip())
             except:
                 pass
-        if buf.endswith(".rules"):
-            return cls(buf.strip())
-        return None
+        return cls(buf.strip()) if buf.endswith(".rules") else None
 
 
 class ReRuleMatcher(object):
@@ -167,15 +159,13 @@ class ReRuleMatcher(object):
         self.pattern = pattern
 
     def match(self, rule):
-        if self.pattern.search(rule.raw):
-            return True
-        return False
+        return bool(self.pattern.search(rule.raw))
 
     @classmethod
     def parse(cls, buf):
         if buf.startswith("re:"):
             try:
-                logger.debug("Parsing regex matcher: %s" % (buf))
+                logger.debug(f"Parsing regex matcher: {buf}")
                 patternstr = buf.split(":", 1)[1].strip()
                 pattern = re.compile(patternstr, re.I)
                 return cls(pattern)
@@ -219,7 +209,7 @@ class ModifyRuleFilter(object):
             raise Exception("Bad number of arguments.")
         matcher = parse_rule_match(matchstring)
         if not matcher:
-            raise Exception("Bad match string: %s" % (matchstring))
+            raise Exception(f"Bad match string: {matchstring}")
         pattern = re.compile(a)
 
         # Convert Oinkmaster backticks to Python.
@@ -235,9 +225,7 @@ class DropRuleFilter(object):
         self.matcher = matcher
 
     def match(self, rule):
-        if rule["noalert"]:
-            return False
-        return self.matcher.match(rule)
+        return False if rule["noalert"] else self.matcher.match(rule)
 
     def run(self, rule):
         drop_rule = suricata.update.rule.parse(re.sub(
@@ -247,24 +235,16 @@ class DropRuleFilter(object):
 
 
 def parse_rule_match(match):
-    matcher = AllRuleMatcher.parse(match)
-    if matcher:
+    if matcher := AllRuleMatcher.parse(match):
         return matcher
 
-    matcher = IdRuleMatcher.parse(match)
-    if matcher:
+    if matcher := IdRuleMatcher.parse(match):
         return matcher
 
-    matcher = ReRuleMatcher.parse(match)
-    if matcher:
+    if matcher := ReRuleMatcher.parse(match):
         return matcher
 
-    matcher = FilenameMatcher.parse(match)
-    if matcher:
+    if matcher := FilenameMatcher.parse(match):
         return matcher
 
-    matcher = GroupMatcher.parse(match)
-    if matcher:
-        return matcher
-
-    return None
+    return matcher if (matcher := GroupMatcher.parse(match)) else None

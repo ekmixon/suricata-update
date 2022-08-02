@@ -52,7 +52,7 @@ class SuriColourLogHandler(logging.StreamHandler):
                                             lt.tm_hour,
                                             lt.tm_min,
                                             lt.tm_sec)
-        return "%s" % (t)
+        return f"{t}"
 
     def emit(self, record):
 
@@ -85,7 +85,7 @@ class SuriColourLogHandler(logging.StreamHandler):
 
     def mask_secrets(self, msg):
         for secret in secrets:
-            msg = msg.replace(secret, "<%s>" % secrets[secret])
+            msg = msg.replace(secret, f"<{secrets[secret]}>")
         return msg
 
 
@@ -99,10 +99,7 @@ class LessThanFilter(logging.Filter):
 
 
 def configure_logging():
-    if os.fstat(sys.stdout.fileno()) == os.fstat(sys.stderr.fileno()):
-        filter_stdout = True
-    else:
-        filter_stdout = False
+    filter_stdout = os.fstat(sys.stdout.fileno()) == os.fstat(sys.stderr.fileno())
     logger = logging.getLogger()
     logger.setLevel(logging.NOTSET)
     logging_handler_out = SuriColourLogHandler(sys.stdout)

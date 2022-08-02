@@ -65,7 +65,7 @@ def add_source():
 
     checksum = args.no_checksum
 
-    header = args.http_header if args.http_header else None
+    header = args.http_header or None
 
     source_config = sources.SourceConfiguration(
         name, header=header, url=url, checksum=checksum)

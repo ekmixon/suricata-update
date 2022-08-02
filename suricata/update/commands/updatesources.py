@@ -39,9 +39,7 @@ def get_initial_content():
 
 
 def get_sources(before, after):
-    all_sources = {source: after[source]
-        for source in after if source not in before}
-    return all_sources
+    return {source: after[source] for source in after if source not in before}
 
 
 def log_sources(sources_map):
@@ -93,8 +91,7 @@ def update_sources():
         try:
             net.get(url, fileobj)
         except Exception as err:
-            raise exceptions.ApplicationError(
-                "Failed to download index: %s: %s" % (url, err))
+            raise exceptions.ApplicationError(f"Failed to download index: {url}: {err}")
         if not os.path.exists(config.get_cache_dir()):
             try:
                 os.makedirs(config.get_cache_dir())

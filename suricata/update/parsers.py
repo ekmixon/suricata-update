@@ -33,37 +33,66 @@ default_update_yaml = config.DEFAULT_UPDATE_YAML_PATH
 
 # Global arguments - command line options for suricata-update
 global_arg = [
-    (("-v", "--verbose"),
-     {'action': 'store_true', 'default': None,
-      'help': "Be more verbose"}),
-    (("-q", "--quiet"),
-     {'action': 'store_true', 'default': None,
-      'help': "Be quiet, warning and error messages only"}),
-    (("-D", "--data-dir"),
-     {'metavar': '<directory>', 'dest': 'data_dir',
-      'help': "Data directory (default: /var/lib/suricata)"}),
-    (("-c", "--config"),
-     {'metavar': '<filename>',
-      'help': "configuration file (default: %s)" % (default_update_yaml)}),
-    (("--suricata-conf",),
-     {'metavar': '<filename>',
-      'help': "configuration file (default: /etc/suricata/suricata.yaml)"}),
-    (("--suricata",),
-     {'metavar': '<path>',
-      'help': "Path to Suricata program"}),
-    (("--suricata-version",),
-     {'metavar': '<version>',
-      'help': "Override Suricata version"}),
-    (("--user-agent",),
-     {'metavar': '<user-agent>',
-      'help': "Set custom user-agent string"}),
-    (("--no-check-certificate",),
-     {'action': 'store_true', 'default': None,
-      'help': "Disable server SSL/TLS certificate verification"}),
-    (("-V", "--version"),
-     {'action': 'store_true', 'default': False,
-      'help': "Display version"})
+    (
+        ("-v", "--verbose"),
+        {'action': 'store_true', 'default': None, 'help': "Be more verbose"},
+    ),
+    (
+        ("-q", "--quiet"),
+        {
+            'action': 'store_true',
+            'default': None,
+            'help': "Be quiet, warning and error messages only",
+        },
+    ),
+    (
+        ("-D", "--data-dir"),
+        {
+            'metavar': '<directory>',
+            'dest': 'data_dir',
+            'help': "Data directory (default: /var/lib/suricata)",
+        },
+    ),
+    (
+        ("-c", "--config"),
+        {
+            'metavar': '<filename>',
+            'help': f"configuration file (default: {default_update_yaml})",
+        },
+    ),
+    (
+        ("--suricata-conf",),
+        {
+            'metavar': '<filename>',
+            'help': "configuration file (default: /etc/suricata/suricata.yaml)",
+        },
+    ),
+    (
+        ("--suricata",),
+        {'metavar': '<path>', 'help': "Path to Suricata program"},
+    ),
+    (
+        ("--suricata-version",),
+        {'metavar': '<version>', 'help': "Override Suricata version"},
+    ),
+    (
+        ("--user-agent",),
+        {'metavar': '<user-agent>', 'help': "Set custom user-agent string"},
+    ),
+    (
+        ("--no-check-certificate",),
+        {
+            'action': 'store_true',
+            'default': None,
+            'help': "Disable server SSL/TLS certificate verification",
+        },
+    ),
+    (
+        ("-V", "--version"),
+        {'action': 'store_true', 'default': False, 'help': "Display version"},
+    ),
 ]
+
 
 # Update arguments - command line options for suricata-update
 update_arg = [
@@ -206,8 +235,8 @@ def parse_arg():
     global_args, rem = global_parser.parse_known_args()
 
     if global_args.version:
-        revision_string = " (rev: %s)" % (revision) if revision else ""
-        print("suricata-update version {}{}".format(version, revision_string))
+        revision_string = f" (rev: {revision})" if revision else ""
+        print(f"suricata-update version {version}{revision_string}")
         sys.exit(0)
 
     if not rem or rem[0].startswith("-"):
@@ -233,9 +262,6 @@ def parse_arg():
 
     # Merge global args into args.
     for arg in vars(global_args):
-        if not hasattr(args, arg):
+        if not hasattr(args, arg) or getattr(args, arg) is None:
             setattr(args, arg, getattr(global_args, arg))
-        elif hasattr(args, arg) and getattr(args, arg) is None:
-            setattr(args, arg, getattr(global_args, arg))
-
     return args

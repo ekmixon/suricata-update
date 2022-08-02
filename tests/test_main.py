@@ -218,7 +218,9 @@ class DropRuleFilterTestCase(unittest.TestCase):
 
     def test_disabled_rule(self):
         rule0 = suricata.update.rule.parse(
-            "# " + self.rule_string, "rules/malware.rules")
+            f"# {self.rule_string}", "rules/malware.rules"
+        )
+
         id_matcher = matchers_mod.IdRuleMatcher.parse("2020757")
         self.assertTrue(id_matcher.match(rule0))
 

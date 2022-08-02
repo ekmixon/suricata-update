@@ -32,8 +32,7 @@ def extract_tar(filename):
                 break
             if not member.isfile():
                 continue
-            fileobj = tf.extractfile(member)
-            if fileobj:
+            if fileobj := tf.extractfile(member):
                 files[member.name] = fileobj.read()
     finally:
         tf.close()
@@ -48,7 +47,7 @@ def extract_zip(filename):
             if name.endswith("/"):
                 continue
             files[name] = reader.read(name)
-    
+
     return files
 
 def try_extract(filename):

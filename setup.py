@@ -24,7 +24,7 @@ def write_git_revision():
         with open("./suricata/update/revision.py", "w") as fileobj:
             fileobj.write("revision = '%s'" % (revision.decode().strip()))
     except Exception as err:
-        print("Failed to get current git revision: %s" % (err))
+        print(f"Failed to get current git revision: {err}")
 
 write_git_revision()
 

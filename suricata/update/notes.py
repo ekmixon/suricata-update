@@ -40,18 +40,21 @@ configuration file.
 
 def render_note(note):
     lines = textwrap.wrap(note.strip().replace("\n", " "))
-    print("* %s" % (lines[0]))
+    print(f"* {lines[0]}")
     for line in lines[1:]:
-        print("  %s" % (line))
+        print(f"  {line}")
 
 def dump_notes():
-    notes = []
+    notes = [
+        missing_address_group_var_template % {"var": var}
+        for var in address_group_vars
+    ]
 
-    for var in address_group_vars:
-        notes.append(missing_address_group_var_template % {"var": var})
 
-    for var in port_group_vars:
-        notes.append(missing_port_group_var_template % {"var": var})
+    notes.extend(
+        missing_port_group_var_template % {"var": var}
+        for var in port_group_vars
+    )
 
     if notes:
         print("\nNotes:\n")

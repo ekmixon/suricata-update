@@ -56,11 +56,11 @@ def get_build_info(suricata):
         elif line.startswith("This is Suricata version"):
             build_info["version"] = parse_version(line)
 
-    if not "prefix" in build_info:
+    if "prefix" not in build_info:
         logger.warning("--prefix not found in build-info.")
-    if not "sysconfdir" in build_info:
+    if "sysconfdir" not in build_info:
         logger.warning("--sysconfdir not found in build-info.")
-    if not "localstatedir" in build_info:
+    if "localstatedir" not in build_info:
         logger.warning("--localstatedir not found in build-info.")
 
     return build_info
@@ -82,15 +82,11 @@ class Configuration:
         return self.conf.get(key, None)
 
     def is_true(self, key, truthy=[]):
-        if not key in self.conf:
-            logger.warning(
-                "Suricata configuration key does not exist: %s" % (key))
+        if key not in self.conf:
+            logger.warning(f"Suricata configuration key does not exist: {key}")
             return False
-        if key in self.conf:
-            val = self.conf[key]
-            if val.lower() in ["1", "yes", "true"] + truthy:
-                return True
-        return False
+        val = self.conf[key]
+        return val.lower() in ["1", "yes", "true"] + truthy
 
     @classmethod
     def load(cls, config_filename, suricata_path=None):
@@ -120,7 +116,7 @@ def get_path(program="suricata"):
     # First look for Suricata relative to suricata-update.
     relative_path = os.path.join(os.path.dirname(sys.argv[0]), "suricata")
     if os.path.exists(relative_path):
-        logger.debug("Found suricata at %s" % (relative_path))
+        logger.debug(f"Found suricata at {relative_path}")
         return relative_path
 
     # Otherwise look for it in the path.
@@ -128,27 +124,25 @@ def get_path(program="suricata"):
         if not path:
             continue
         suricata_path = os.path.join(path, program)
-        logger.debug("Looking for %s in %s" % (program, path))
+        logger.debug(f"Looking for {program} in {path}")
         if os.path.exists(suricata_path):
-            logger.debug("Found %s." % (suricata_path))
+            logger.debug(f"Found {suricata_path}.")
             return suricata_path
     return None
 
 def parse_version(buf):
-    m = re.search("((\d+)\.(\d+)(\.(\d+))?([\w\-]+)?)", str(buf).strip())
-    if m:
-        full = m.group(1)
-        major = int(m.group(2))
-        minor = int(m.group(3))
-        if not m.group(5):
-            patch = 0
-        else:
-            patch = int(m.group(5))
-        short = "%s.%s" % (major, minor)
-        return SuricataVersion(
-            major=major, minor=minor, patch=patch, short=short, full=full,
-            raw=buf)
-    return None
+    if not (
+        m := re.search("((\d+)\.(\d+)(\.(\d+))?([\w\-]+)?)", str(buf).strip())
+    ):
+        return None
+    full = m[1]
+    major = int(m[2])
+    minor = int(m[3])
+    patch = int(m[5]) if m[5] else 0
+    short = f"{major}.{minor}"
+    return SuricataVersion(
+        major=major, minor=minor, patch=patch, short=short, full=full,
+        raw=buf)
 
 def get_version(path):
     """Get a SuricataVersion named tuple describing the version.
@@ -158,8 +152,7 @@ def get_version(path):
     """
     if not path:
         return None
-    output = subprocess.check_output([path, "-V"])
-    if output:
+    if output := subprocess.check_output([path, "-V"]):
         return parse_version(output)
     return None
 
@@ -181,7 +174,7 @@ def test_configuration(suricata_path, suricata_conf=None, rule_filename=None):
 
     logger.debug("Running %s; env=%s", " ".join(test_command), str(env))
     rc = subprocess.Popen(test_command, env=env).wait()
-    ret = True if rc == 0 else False
+    ret = rc == 0
 
     # Cleanup the temp dir
     shutil.rmtree(tempdir)

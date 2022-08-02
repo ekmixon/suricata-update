@@ -55,8 +55,7 @@ def set_user_agent_suricata_version(version):
 
 def build_user_agent():
     params = []
-    has_custom_user_agent = config.has("user-agent")
-    if has_custom_user_agent:
+    if has_custom_user_agent := config.has("user-agent"):
         user_agent = config.get("user-agent")
         if user_agent is None or len(user_agent.strip()) == 0:
             logger.debug("Suppressing HTTP User-Agent header")
@@ -65,35 +64,32 @@ def build_user_agent():
 
     params = []
     try:
-        params.append("OS: {}".format(platform.system()))
+        params.append(f"OS: {platform.system()}")
     except Exception as err:
-        logger.error("Failed to set user-agent OS: {}".format(str(err)))
+        logger.error(f"Failed to set user-agent OS: {str(err)}")
     try:
-        params.append("CPU: {}".format(osinfo.arch()))
+        params.append(f"CPU: {osinfo.arch()}")
     except Exception as err:
-        logger.error("Failed to set user-agent architecture: {}".format(str(err)))
+        logger.error(f"Failed to set user-agent architecture: {str(err)}")
     try:
-        params.append("Python: {}".format(platform.python_version()))
+        params.append(f"Python: {platform.python_version()}")
     except Exception as err:
-        logger.error("Failed to set user-agent python version: {}".format(str(err)))
+        logger.error(f"Failed to set user-agent python version: {str(err)}")
     try:
-        params.append("Dist: {}".format(osinfo.dist()))
+        params.append(f"Dist: {osinfo.dist()}")
     except Exception as err:
-        logger.error("Failed to set user-agent distribution: {}".format(str(err)))
+        logger.error(f"Failed to set user-agent distribution: {str(err)}")
 
-    params.append("Suricata: %s" % (user_agent_suricata_verison))
+    params.append(f"Suricata: {user_agent_suricata_verison}")
 
-    return "Suricata-Update/%s (%s)" % (
-        version, "; ".join(params))
+    return f'Suricata-Update/{version} ({"; ".join(params)})'
 
 
 def is_header_clean(header):
     if len(header) != 2:
         return False
     name, val = header[0].strip(), header[1].strip()
-    if re.match( r"^[\w-]+$", name) and re.match(r"^[\w\s -~]+$", val):
-        return True
-    return False
+    return bool(re.match( r"^[\w-]+$", name) and re.match(r"^[\w\s -~]+$", val))
 
 
 def get(url, fileobj, progress_hook=None):
@@ -172,4 +168,4 @@ if __name__ == "__main__":
     try:
         get(sys.argv[1], sys.stdout)
     except Exception as err:
-        print("ERROR: %s" % (err))
+        print(f"ERROR: {err}")

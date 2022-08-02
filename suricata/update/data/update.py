@@ -38,7 +38,7 @@ def embed_index():
     del(index["versions"])
 
     with open(dist_filename, "w") as fileobj:
-        fileobj.write("index = %s" % (str(index)))
+        fileobj.write(f"index = {str(index)}")
     
 if __name__ == "__main__":
     embed_index()

@@ -102,9 +102,7 @@ def set(key, value):
 
 def get(key):
     """Get a configuration value."""
-    if key in _config:
-        return _config[key]
-    return None
+    return _config[key] if key in _config else None
 
 def set_state_dir(directory):
     _config[DATA_DIRECTORY_KEY] = directory
@@ -158,15 +156,13 @@ def init(args):
     if args.config:
         logger.info("Loading %s", args.config)
         with open(args.config, "rb") as fileobj:
-            config = yaml.safe_load(fileobj)
-            if config:
+            if config := yaml.safe_load(fileobj):
                 _config.update(config)
                 filename = args.config
     elif os.path.exists(DEFAULT_UPDATE_YAML_PATH):
         logger.info("Loading %s", DEFAULT_UPDATE_YAML_PATH)
         with open(DEFAULT_UPDATE_YAML_PATH, "rb") as fileobj:
-            config = yaml.safe_load(fileobj)
-            if config:
+            if config := yaml.safe_load(fileobj):
                 _config.update(config)
                 filename = DEFAULT_UPDATE_YAML_PATH
 
@@ -189,21 +185,20 @@ def init(args):
     if "suricata" in _config:
         if not os.path.exists(_config["suricata"]):
             raise ApplicationError(
-                "Configured path to suricata does not exist: %s" % (
-                    _config["suricata"]))
-    else:
-        suricata_path = suricata.update.engine.get_path()
-        if not suricata_path:
-            logger.warning("No suricata application binary found on path.")
-        else:
-            _config["suricata"] = suricata_path
+                f'Configured path to suricata does not exist: {_config["suricata"]}'
+            )
 
+    elif suricata_path := suricata.update.engine.get_path():
+        _config["suricata"] = suricata_path
+
+    else:
+        logger.warning("No suricata application binary found on path.")
     if "suricata" in _config:
         build_info = suricata.update.engine.get_build_info(_config["suricata"])
 
         # Set the first suricata.yaml to check for to the one in the
         # --sysconfdir provided by build-info.
-        if not "suricata_conf" in _config and "sysconfdir" in build_info:
+        if "suricata_conf" not in _config and "sysconfdir" in build_info:
             DEFAULT_SURICATA_YAML_PATH.insert(
                 0, os.path.join(
                     build_info["sysconfdir"], "suricata/suricata.yaml"))
@@ -220,7 +215,7 @@ def init(args):
 
         # Set the data-directory prefix to that of the --localstatedir
         # found in the build-info.
-        if not DATA_DIRECTORY_KEY in _config and "localstatedir" in build_info:
+        if DATA_DIRECTORY_KEY not in _config and "localstatedir" in build_info:
             data_directory = os.path.join(
                 build_info["localstatedir"], "lib/suricata")
             logger.info("Using data-directory %s.", data_directory)
@@ -228,14 +223,14 @@ def init(args):
 
     # If suricata-conf not provided on the command line or in the
     # configuration file, look for it.
-    if not "suricata-conf" in _config:
+    if "suricata-conf" not in _config:
         for conf in DEFAULT_SURICATA_YAML_PATH:
             if os.path.exists(conf):
-                logger.info("Using Suricata configuration %s" % (conf))
+                logger.info(f"Using Suricata configuration {conf}")
                 _config["suricata-conf"] = conf
                 break
 
-    if not DIST_RULE_DIRECTORY_KEY in _config:
+    if DIST_RULE_DIRECTORY_KEY not in _config:
         for path in DEFAULT_DIST_RULE_PATH:
             if os.path.exists(path):
                 logger.info("Using %s for Suricata provided rules.", path)

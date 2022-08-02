@@ -62,19 +62,17 @@ def get_disabled_source_filename(name):
 
 def source_name_exists(name):
     """Return True if a source already exists with name."""
-    if os.path.exists(get_enabled_source_filename(name)) or \
-       os.path.exists(get_disabled_source_filename(name)):
-        return True
-    return False
+    return bool(
+        os.path.exists(get_enabled_source_filename(name))
+        or os.path.exists(get_disabled_source_filename(name))
+    )
 
 def source_index_exists(config):
     """Return True if the source index file exists."""
     return os.path.exists(get_index_filename())
 
 def get_source_index_url():
-    if os.getenv("SOURCE_INDEX_URL"):
-        return os.getenv("SOURCE_INDEX_URL")
-    return DEFAULT_SOURCE_INDEX_URL
+    return os.getenv("SOURCE_INDEX_URL") or DEFAULT_SOURCE_INDEX_URL
 
 def save_source_config(source_config):
     if not os.path.exists(get_source_directory()):
@@ -123,21 +121,19 @@ class Index:
             self.index = bundled_index
 
     def resolve_url(self, name, params={}):
-        if not name in self.index["sources"]:
-            raise Exception("Source name not in index: %s" % (name))
+        if name not in self.index["sources"]:
+            raise Exception(f"Source name not in index: {name}")
         source = self.index["sources"][name]
         try:
             return source["url"] % params
         except KeyError as err:
-            raise Exception("Missing URL parameter: %s" % (str(err.args[0])))
+            raise Exception(f"Missing URL parameter: {str(err.args[0])}")
 
     def get_sources(self):
         return self.index["sources"]
 
     def get_source_by_name(self, name):
-        if name in self.index["sources"]:
-            return self.index["sources"][name]
-        return None
+        return self.index["sources"][name] if name in self.index["sources"] else None
 
     def get_versions(self):
         try:

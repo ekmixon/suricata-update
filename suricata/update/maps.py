@@ -77,9 +77,7 @@ class SignatureMap(object):
 
         key = (generator_id, signature_id)
         sig = self.map.get(key)
-        if sig is None and generator_id == 3:
-            return self.get(1, signature_id)
-        return sig
+        return self.get(1, signature_id) if sig is None and generator_id == 3 else sig
 
     def load_generator_map(self, fileobj):
         """Load the generator message map (gen-msg.map) from a
@@ -182,10 +180,7 @@ class ClassificationMap(object):
         :returns: A dict describing the classification or None.
 
         """
-        if 0 < class_id <= len(self.id_map):
-            return self.id_map[class_id - 1]
-        else:
-            return None
+        return self.id_map[class_id - 1] if 0 < class_id <= len(self.id_map) else None
 
     def get_by_name(self, name):
         """Get a classification by name.
@@ -195,10 +190,7 @@ class ClassificationMap(object):
         :returns: A dict describing the classification or None.
 
         """
-        if name in self.name_map:
-            return self.name_map[name]
-        else:
-            return None
+        return self.name_map[name] if name in self.name_map else None
 
     def load_from_file(self, fileobj):
         """Load classifications from a Snort style
@@ -207,9 +199,5 @@ class ClassificationMap(object):
         """
         pattern = "config classification: ([^,]+),([^,]+),([^,]+)"
         for line in fileobj:
-            m = re.match(pattern, line.strip())
-            if m:
-                self.add({
-                    "name": m.group(1),
-                    "description": m.group(2),
-                    "priority": int(m.group(3))})
+            if m := re.match(pattern, line.strip()):
+                self.add({"name": m[1], "description": m[2], "priority": int(m[3])})

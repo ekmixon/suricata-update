@@ -14,9 +14,9 @@ def delete(path):
     else:
         os.unlink(path)
 
-print("Python executable: %s" % sys.executable)
-print("Python version: %s" % str(sys.version))
-print("Current directory: %s" % os.getcwd())
+print(f"Python executable: {sys.executable}")
+print(f"Python version: {str(sys.version)}")
+print(f"Current directory: {os.getcwd()}")
 
 # Override the default source index URL to avoid hitting the network.
 os.environ["SOURCE_INDEX_URL"] = "file://%s/tests/index.yaml" % (
